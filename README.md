@@ -4,6 +4,7 @@
   <img src="icon.png" width="96" alt="icon">
 </p>
 
+> **游戏：吉星派对（Astral Party）**
 > **插件名：自定义主页背景** ｜ **作者：TenkinMori**
 >
 > CesiumLoader 托管模组：把 `HomeBackgroundMod.dll` 放进
