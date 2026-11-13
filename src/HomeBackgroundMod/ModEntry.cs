@@ -1,0 +1,351 @@
+﻿using System;
+using System.IO;
+using CesiumLoader.SDK;
+using CesiumLoader.SDK.Configuration;
+using CesiumLoader.SDK.Mods;
+using FairyGUI;
+using Tools;
+using UI;
+using UnityEngine;
+
+namespace HomeBackgroundMod
+{
+    public static class ModEntry
+    {
+        public static void Main()
+        {
+            ModBase.Run(new HomeBackgroundController());
+        }
+    }
+
+    /// <summary>
+    /// 把主页（UIHomePanel.loader_bg）的背景换成自定义图片。
+    ///
+    /// 不修改游戏文件：只在内存里给 loader 赋一张运行时加载的 Texture2D。
+    /// 游戏在切换主页/重设背景时可能覆盖，所以 OnUpdate 里低频巡检补挂。
+    /// </summary>
+    public sealed class HomeBackgroundController : ModBase
+    {
+        private const double PollIntervalSeconds = 0.5;
+        private const string DefaultImage = "assets/bg.png";
+        private const string DefaultVideo = "bg.mp4";
+
+        private bool _enabled = true;
+        private bool _hideThemeVideo = true;
+        private string _imageRelative = DefaultImage;
+        private string _videoRelative = DefaultVideo;
+
+        private Texture2D _texture;
+        private NTexture _nTexture;
+        private GLoader _overlay;
+        private string _loadedPath;
+
+        private VideoBackground _video;
+        private NTexture _videoTexture;
+        private bool _videoTried;
+
+        private double _nextPoll;
+        private double _nextWarn;
+        private string _lastWarn;
+        private bool _loggedApply;
+        private bool _loggedHideVideo;
+
+        public override string Name { get { return "自定义主页背景"; } }
+        public override string Version { get { return "1.0.0"; } }
+        public override string Author { get { return "TenkinMori"; } }
+        public override string Description
+        {
+            get { return "把游戏主页背景换成自定义视频或图片（bg.mp4 / assets/bg.png）。"; }
+        }
+
+        public override void OnInitialize()
+        {
+            ReadConfig(writeDefaults: true);
+            Log.Info("配置: enable=" + _enabled + ", image=" + _imageRelative);
+            if (_enabled && ResolveVideoPath() == null) Preload();
+        }
+
+        public override void OnConfigChanged()
+        {
+            ReadConfig(writeDefaults: false);
+            DisposeTexture();
+            _loggedApply = false;
+            Log.Info("配置已更新: enable=" + _enabled + ", image=" + _imageRelative);
+            if (_enabled && ResolveVideoPath() == null) Preload();
+        }
+
+        public override void OnUpdate()
+        {
+            if (!_enabled) return;
+            double now = DateTime.UtcNow.TimeOfDay.TotalSeconds;
+            if (now < _nextPoll) return;
+            _nextPoll = now + PollIntervalSeconds;
+
+            try { Apply(); }
+            catch (Exception e) { Warn("应用失败: " + e.Message); }
+        }
+
+        public override void OnUnload()
+        {
+            DisposeTexture();
+        }
+
+        // ------------------------------------------------------------------
+        private void ReadConfig(bool writeDefaults)
+        {
+            ModConfig cfg = Config;
+            if (cfg == null) return;
+
+            if (writeDefaults && cfg.Count == 0)
+            {
+                cfg.Set("enable", true);
+                cfg.Set("hideThemeVideo", true);
+                cfg.Set("video", DefaultVideo);
+                cfg.Set("image", DefaultImage);
+                cfg.SaveIfDirty();
+            }
+
+            _enabled = cfg.GetBool("enable", true);
+            _hideThemeVideo = cfg.GetBool("hideThemeVideo", true);
+            string video = cfg.GetString("video", DefaultVideo);
+            _videoRelative = string.IsNullOrEmpty(video) ? DefaultVideo : video;
+            string image = cfg.GetString("image", DefaultImage);
+            _imageRelative = string.IsNullOrEmpty(image) ? DefaultImage : image;
+        }
+
+        private void Apply()
+        {
+            UIManager manager = SimpleSingletonProvider<UIManager>.inst;
+            if (manager == null) return;
+
+            IBasePanel current = manager.currentPanel;
+            if (current == null || current.config == null) return;
+            if (current.config.PanelType != UIPanelType.Home) return;
+
+            HomePanel home = current as HomePanel;
+            if (home == null) return;
+
+            UIHomePanel ui = home.UIObject;
+            if (ui == null || ui.loader_bg == null) return;
+
+            NTexture source = null;
+            if (EnsureVideo()) source = _videoTexture;
+
+            if (source == null)
+            {
+                if (_texture == null && !LoadTexture()) return;
+                if (_nTexture == null) _nTexture = new NTexture(_texture);
+                source = _nTexture;
+            }
+
+            // 先压掉「当期主题背景」视频，避免它盖住背景
+            SuppressThemeVideo(ui);
+
+            ApplyOverlay(ui, source);
+        }
+
+        /// <summary>优先用模组目录下的 bg.mp4；没有视频就回退到 PNG。</summary>
+        private bool EnsureVideo()
+        {
+            if (_video == null) _video = new VideoBackground();
+            if (_video.IsPlaying)
+            {
+                if (_videoTexture == null) _videoTexture = new NTexture(_video.Texture);
+                return true;
+            }
+            if (_videoTried) return false;
+
+            _videoTried = true;
+            string path = ResolveVideoPath();
+            if (path == null) return false;
+
+            string error;
+            if (!_video.TryStart(path, (int)GRoot.inst.width, (int)GRoot.inst.height, out error))
+            {
+                Warn("视频背景启动失败: " + error);
+                return false;
+            }
+
+            _videoTexture = new NTexture(_video.Texture);
+            Log.Info("已启动视频背景: " + path);
+            return true;
+        }
+
+        private string ResolveVideoPath()
+        {
+            string root = SdkPath.CurrentModDirectory;
+            string[] candidates =
+            {
+                Path.Combine(root, _videoRelative.Replace('/', Path.DirectorySeparatorChar)),
+                Path.Combine(root, "assets", _videoRelative.Replace('/', Path.DirectorySeparatorChar)),
+                Path.Combine(root, DefaultVideo)
+            };
+
+            for (int i = 0; i < candidates.Length; i++)
+            {
+                if (File.Exists(candidates[i])) return candidates[i];
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// 在 Com_BGSet 之上插一个不接收点击的 GLoader，直接铺我们自己的图/视频。
+        /// 比改 loader_bg 稳：游戏重新设 url / 换主题时不会把它顶掉。
+        /// </summary>
+        private void ApplyOverlay(UIHomePanel ui, NTexture source)
+        {
+            if (_overlay == null || _overlay.parent != ui)
+            {
+                _overlay = new GLoader();
+                _overlay.name = "HomeBackgroundModOverlay";
+                _overlay.fill = FillType.ScaleFree;
+                _overlay.touchable = false;
+
+                int index = DesiredOverlayIndex(ui);
+                ui.AddChildAt(_overlay, index);
+
+                Log.Info("overlay 插入 index=" + index + "/" + ui.numChildren
+                    + " loader_bg=" + IndexOf(ui, ui.loader_bg)
+                    + " Com_BGSet=" + IndexOf(ui, ui.Com_BGSet));
+            }
+            else
+            {
+                int want = DesiredOverlayIndex(ui);
+                if (ui.GetChildIndex(_overlay) < want) ui.SetChildIndex(_overlay, want);
+            }
+
+            _overlay.SetSize(GRoot.inst.width, GRoot.inst.height);
+            _overlay.SetPosition(0f, 0f, 0f);
+
+            if (!ReferenceEquals(_overlay.texture, source))
+            {
+                _overlay.texture = source;
+                if (!_loggedApply)
+                {
+                    _loggedApply = true;
+                    Log.Info("已替换主页背景(overlay): " + _loadedPath);
+                }
+            }
+        }
+
+        /// <summary>插到 loader_bg 和 Com_BGSet 之上，但在其余按钮/文字之下。</summary>
+        private static int DesiredOverlayIndex(UIHomePanel ui)
+        {
+            int index = 0;
+            if (ui.loader_bg != null && ui.loader_bg.parent == ui) index = Math.Max(index, ui.GetChildIndex(ui.loader_bg) + 1);
+            if (ui.Com_BGSet != null && ui.Com_BGSet.parent == ui) index = Math.Max(index, ui.GetChildIndex(ui.Com_BGSet) + 1);
+            if (index > ui.numChildren) index = ui.numChildren;
+            return index;
+        }
+
+        private static string IndexOf(UIHomePanel ui, GObject obj)
+        {
+            if (obj == null || obj.parent != ui) return "-";
+            return ui.GetChildIndex(obj).ToString();
+        }
+
+        /// <summary>
+        /// 主页的「当期主题背景」是 CRI 视频，渲染在 Com_BGSet.loader_Video(GGraph) 上，
+        /// 会盖住 loader_bg。这里停掉并隐藏它，让自定义背景露出来。
+        /// </summary>
+        private void SuppressThemeVideo(UIHomePanel ui)
+        {
+            if (!_hideThemeVideo) return;
+            UIHome_Com_BGSet bgSet = ui.Com_BGSet;
+            if (bgSet == null || bgSet.loader_Video == null) return;
+
+            GGraph video = bgSet.loader_Video;
+            if (!video.visible) return;
+
+            video.visible = false;
+            try { SimpleSingletonProvider<CriMovieManager>.inst.StopAndDestroy(video); } catch { }
+
+            if (!_loggedHideVideo)
+            {
+                _loggedHideVideo = true;
+                Log.Info("已隐藏主题背景视频（Com_BGSet.loader_Video）");
+            }
+        }
+
+        private void Preload()
+        {
+            if (!LoadTexture()) return;
+            Log.Info("已加载背景图 " + _texture.width + "x" + _texture.height + ": " + _loadedPath);
+        }
+
+        private bool LoadTexture()
+        {
+            string root = SdkPath.CurrentModDirectory;
+            string rel = _imageRelative.Replace('/', Path.DirectorySeparatorChar);
+            string path = Path.IsPathRooted(rel) ? rel : Path.Combine(root, rel);
+
+            if (!File.Exists(path))
+            {
+                Warn("找不到图片: " + path);
+                return false;
+            }
+
+            byte[] data;
+            try { data = File.ReadAllBytes(path); }
+            catch (Exception e) { Warn("读取图片失败: " + e.Message); return false; }
+
+            int width, height;
+            byte[] rgba;
+            if (!PngDecoder.TryDecode(data, out width, out height, out rgba))
+            {
+                Warn("PNG 解码失败（仅支持 8-bit 非隔行 PNG）");
+                return false;
+            }
+
+            Texture2D tex = new Texture2D(width, height, TextureFormat.RGBA32, false);
+            tex.wrapMode = TextureWrapMode.Clamp;
+            tex.name = "HomeBackgroundMod";
+            tex.LoadRawTextureData(rgba);
+            tex.Apply(false, false);
+
+            _texture = tex;
+            _loadedPath = path;
+            return true;
+        }
+
+        private void DisposeTexture()
+        {
+            if (_overlay != null)
+            {
+                try
+                {
+                    _overlay.RemoveFromParent();
+                    _overlay.Dispose();
+                }
+                catch { }
+                _overlay = null;
+            }
+
+            if (_video != null)
+            {
+                _video.Stop();
+                _video = null;
+            }
+            _videoTexture = null;
+            _videoTried = false;
+
+            if (_texture != null)
+            {
+                try { UnityEngine.Object.Destroy(_texture); } catch { }
+                _texture = null;
+            }
+            _nTexture = null;
+            _loadedPath = null;
+        }
+
+        private void Warn(string message)
+        {
+            double now = DateTime.UtcNow.TimeOfDay.TotalSeconds;
+            if (message == _lastWarn && now < _nextWarn) return;
+            _lastWarn = message;
+            _nextWarn = now + 30;
+            Log.Warn(message);
+        }
+    }
+}
+
