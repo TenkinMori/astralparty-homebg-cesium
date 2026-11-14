@@ -81,7 +81,7 @@ namespace HomeBackgroundMod
             if (now < _nextPoll) return;
             _nextPoll = now + PollIntervalSeconds;
 
-            try { Apply(); }
+            try { if (_video != null) _video.Tick(); Apply(); }
             catch (Exception e) { Warn("应用失败: " + e.Message); }
         }
 
@@ -295,6 +295,18 @@ namespace HomeBackgroundMod
             {
                 Warn("PNG 解码失败（仅支持 8-bit 非隔行 PNG）");
                 return false;
+            }
+
+            for (int y = 0; y < height / 2; y++)
+            {
+                int a = y * width * 4;
+                int b = (height - 1 - y) * width * 4;
+                for (int i = 0; i < width * 4; i++)
+                {
+                    byte t = rgba[a + i];
+                    rgba[a + i] = rgba[b + i];
+                    rgba[b + i] = t;
+                }
             }
 
             Texture2D tex = new Texture2D(width, height, TextureFormat.RGBA32, false);
