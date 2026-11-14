@@ -81,7 +81,7 @@ namespace HomeBackgroundMod
             if (now < _nextPoll) return;
             _nextPoll = now + PollIntervalSeconds;
 
-            try { if (_video != null) _video.Tick(); Apply(); }
+            try { Apply(); }
             catch (Exception e) { Warn("应用失败: " + e.Message); }
         }
 

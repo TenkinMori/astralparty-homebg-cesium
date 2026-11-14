@@ -13,10 +13,9 @@ namespace HomeBackgroundMod
         private GameObject _gameObject;
         private object _player;
         private RenderTexture _renderTexture;
-        private RenderTexture _displayTexture;
         private Type _playerType;
 
-        public RenderTexture Texture { get { return _displayTexture != null ? _displayTexture : _renderTexture; } }
+        public RenderTexture Texture { get { return _renderTexture; } }
         public bool IsPlaying { get { return _player != null && _renderTexture != null; } }
 
         public bool TryStart(string path, int width, int height, out string error)
@@ -44,8 +43,6 @@ namespace HomeBackgroundMod
 
                 _renderTexture = new RenderTexture(Math.Max(2, width), Math.Max(2, height), 0, RenderTextureFormat.ARGB32);
                 _renderTexture.name = "HomeBackgroundModVideoRT";
-                _displayTexture = new RenderTexture(Math.Max(2, width), Math.Max(2, height), 0, RenderTextureFormat.ARGB32);
-                _displayTexture.name = "HomeBackgroundModVideoDisplayRT";
 
                 Set("url", new Uri(path).AbsoluteUri);
                 SetEnum("renderMode", "RenderTexture");
@@ -65,16 +62,6 @@ namespace HomeBackgroundMod
             }
         }
 
-        public void Tick()
-        {
-            try
-            {
-                if (_renderTexture == null || _displayTexture == null) return;
-                Graphics.Blit(_renderTexture, _displayTexture, new Vector2(1f, -1f), new Vector2(0f, 1f));
-            }
-            catch { }
-        }
-
         public void Stop()
         {
             try
@@ -92,22 +79,15 @@ namespace HomeBackgroundMod
             try
             {
                 if (_renderTexture != null) UnityEngine.Object.Destroy(_renderTexture);
-                if (_displayTexture != null) UnityEngine.Object.Destroy(_displayTexture);
             }
             catch { }
 
             _gameObject = null;
             _player = null;
             _renderTexture = null;
-            _displayTexture = null;
         }
 
         // ------------------------------------------------------------------
-        private void TrySet(string name, object value)
-        {
-            try { Set(name, value); } catch { }
-        }
-
         private void Set(string name, object value)
         {
             if (_playerType == null || _player == null) return;
