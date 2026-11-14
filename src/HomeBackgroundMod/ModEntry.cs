@@ -51,7 +51,7 @@ namespace HomeBackgroundMod
         private bool _loggedHideVideo;
 
         public override string Name { get { return "自定义主页背景"; } }
-        public override string Version { get { return "1.0.0"; } }
+        public override string Version { get { return "1.1.0"; } }
         public override string Author { get { return "TenkinMori"; } }
         public override string Description
         {
