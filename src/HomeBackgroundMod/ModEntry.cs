@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using CesiumLoader.SDK;
 using CesiumLoader.SDK.Configuration;
@@ -150,6 +150,8 @@ namespace HomeBackgroundMod
             if (_video == null) _video = new VideoBackground();
             if (_video.IsPlaying)
             {
+                // Prepare 异步完成后再 Play；Android 上立即 Play 会丢帧。
+                if (_video.IsPrepared) _video.Play();
                 if (_videoTexture == null) _videoTexture = new NTexture(_video.Texture);
                 return true;
             }

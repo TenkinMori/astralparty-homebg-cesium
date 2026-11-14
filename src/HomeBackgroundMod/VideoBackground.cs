@@ -14,9 +14,27 @@ namespace HomeBackgroundMod
         private object _player;
         private RenderTexture _renderTexture;
         private Type _playerType;
+        private bool _started;
 
         public RenderTexture Texture { get { return _renderTexture; } }
         public bool IsPlaying { get { return _player != null && _renderTexture != null; } }
+
+        /// <summary>
+        /// Prepare 是异步的；Android 上 Prepare 后立刻 Play 会丢帧，PC 也统一等就绪再 Play。
+        /// </summary>
+        public bool IsPrepared
+        {
+            get
+            {
+                try
+                {
+                    if (_player == null || _playerType == null) return false;
+                    PropertyInfo p = _playerType.GetProperty("isPrepared");
+                    return p != null && Convert.ToBoolean(p.GetValue(_player, null));
+                }
+                catch { return false; }
+            }
+        }
 
         public bool TryStart(string path, int width, int height, out string error)
         {
@@ -51,7 +69,7 @@ namespace HomeBackgroundMod
                 Set("playOnAwake", false);
                 TrySetEnum("audioOutputMode", "None");
 
-                Invoke("Play");
+                Invoke("Prepare");
                 return true;
             }
             catch (Exception e)
@@ -60,6 +78,17 @@ namespace HomeBackgroundMod
                 Stop();
                 return false;
             }
+        }
+
+        public void Play()
+        {
+            try
+            {
+                if (_player == null || _started) return;
+                _started = true;
+                Invoke("Play");
+            }
+            catch { }
         }
 
         public void Stop()
@@ -85,6 +114,7 @@ namespace HomeBackgroundMod
             _gameObject = null;
             _player = null;
             _renderTexture = null;
+            _started = false;
         }
 
         // ------------------------------------------------------------------
