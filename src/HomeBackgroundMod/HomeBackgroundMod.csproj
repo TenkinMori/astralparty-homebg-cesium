@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
@@ -8,6 +8,8 @@
     <AssemblyName>HomeBackgroundMod</AssemblyName>
     <RootNamespace>HomeBackgroundMod</RootNamespace>
     <Version>1.2.1</Version>
+    <NuGetAudit>false</NuGetAudit>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>

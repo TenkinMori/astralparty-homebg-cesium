@@ -1,4 +1,4 @@
-﻿# 自定义主页背景（CesiumLoader 版）
+# 自定义主页背景（CesiumLoader 版）
 
 <p align="left">
   <img src="icon.png" width="96" alt="icon">
@@ -20,12 +20,19 @@
 
 只改本机显示，不修改游戏文件、不改服务端。
 
+## 下载
+
+到 [Releases](https://github.com/TenkinMori/astralparty-homebg-cesium/releases) 下最新一版：
+
+- `HomeBackgroundMod.dll`：单个 dll，**Windows 与 Android 通用**（v1.2.0 起合并为一个跨平台程序集）
+- `HomeBackgroundMod-1.2.1.zip`：整包（dll + json + icon + 默认背景图），解压即用
+
 ## 安装
 
 前提：游戏已安装 CesiumLoader（根目录有 `version.dll` 和 `AstralParty_ModLoader/`）。
 
 1. 关闭游戏
-2. 把 `dist/HomeBackgroundMod/` 整个文件夹复制到：
+2. 把 `dist/HomeBackgroundMod/` 整个文件夹（或解压 zip 得到的文件夹）复制到：
 
    ```text
    游戏目录/AstralParty_ModLoader/mods/HomeBackgroundMod/
@@ -38,6 +45,10 @@
    ```
 
 3. 重启游戏，进主页
+
+Android 只需要把同一个 `HomeBackgroundMod.dll` 放进手机的
+`Android/data/…/AstralParty_ModLoader/mods/HomeBackgroundMod/`（具体路径取决于你用的加载器），
+ASSETS 目录里的 `bg.mp4` / `assets/bg.png` 一并放好即可。
 
 ## 使用
 
@@ -89,10 +100,13 @@
 
 - 修复 Unity Linear 色彩空间下视频背景写入 `sRGB` `RenderTexture` 导致画面发白的问题（4×4 中灰自校准：自动匹配 Shader 线性 Keyword、`GL.sRGBWrite = false` 或 `Linear RT → Graphics.CopyTexture → sRGB Texture2D`）
 - 规范程序集版本号（`1.2.1`）及多平台统一分发目录
+- 构建可复现：关闭 `IncludeSourceRevisionInInformationalVersion`，同一份源码连续两次构建哈希一致
+
+> Android 的 MediaCodec + GPU YUV 管线由 [@Aperfish](https://github.com/Aperfish) 贡献（PR #1），见下方 v1.2.0 条目。
 
 ### v1.2.0
 
-- 重构 Android 视频背景解码与渲染管线：后台线程 `MediaCodec`（`YUV_420_888`）双槽 `DirectByteBuffer` + 纯反射 JNI `GetDirectBufferAddress` 零拷贝 + 复用游戏内置 `CriMana/SofdecPrimeYuv` GPU 着色器直接渲染，解决主线程卡顿掉帧
+- 重构 Android 视频背景解码与渲染管线：后台线程 `MediaCodec`（`YUV_420_888`）双槽 `DirectByteBuffer` + 纯反射 JNI `GetDirectBufferAddress` 零拷贝 + 复用游戏内置 `CriMana/SofdecPrimeYuv` GPU 着色器直接渲染，解决主线程卡顿掉帧（贡献者：[@Aperfish](https://github.com/Aperfish)，PR #1）
 - 支持进入对局/离开主页自动暂停解码，返回主页恢复
 - Windows 与 Android 统一编译为单个跨平台 `HomeBackgroundMod.dll`
 
@@ -111,7 +125,9 @@
    `UIHome_Com_BGSet.loader_Video (GGraph)` 上；模组把它停止并隐藏。
 2. 用 Unity 的 `VideoPlayer`（通过反射获取，避免编译期依赖 `UnityEngine.VideoModule`）
    播放 `bg.mp4`，渲染到 `RenderTexture`。
-3. 在 `HomePanel` 里插一个不接收点击的 `GLoader` 覆盖层，把 `RenderTexture` 铺满屏幕，
+   Android 上改用 `MediaCodec` 硬解成 `YUV_420_888`，经 `DirectByteBuffer` 零拷贝交给
+   游戏内置的 `CriMana/SofdecPrimeYuv` 着色器直接出图（不经过 `RenderTexture`，避免线性/伽马二次转换）。
+3. 在 `HomePanel` 里插一个不接收点击的 `GLoader` 覆盖层，把画面铺满屏幕，
    层级位于 `loader_bg` / `Com_BGSet` 之上、按钮之下。
 4. 没有视频时用内置 PNG 解码器（`PngDecoder`）读 `assets/bg.png`，
    转成 RGBA32 后交给 `Texture2D.LoadRawTextureData`。
@@ -132,10 +148,15 @@
 需要 .NET SDK 8+：
 
 ```powershell
-pwsh -File build.ps1
+pwsh -File build.ps1            # 只编 C#（沿用仓库内已提交的 AndroidVideoDex.g.cs）
+pwsh -File build.ps1 -PackageZip  # 额外产出 dist/HomeBackgroundMod-1.2.1.zip
 ```
 
-产物在 `dist/HomeBackgroundMod/`。
+如果改过 `android/java/homebg/VideoDecoder.java`，需要重新生成内嵌 DEX
+（`build.ps1` 会自动找 `android.jar` 与 `d8.jar` 跑 `javac --release 8` + `D8 --min-api 26`；
+也可以用 `-AndroidJar` / `-D8Jar` 显式指定，或用 `-SkipJava` 跳过）。
+
+产物在 `dist/HomeBackgroundMod/`，另外 `dist/android/`、`dist/pc/` 会放同一份 dll（兼容旧的下载路径）。
 
 - `lib/CesiumLoader.SDK.dll`：CesiumLoader SDK（MIT，随仓库提供以便直接构建）
 - `refs/game/*.dll`：游戏热更程序集（2026-11-12 国服版本），只用于编译引用
