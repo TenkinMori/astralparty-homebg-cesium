@@ -81,7 +81,8 @@ ASSETS 目录里的 `bg.mp4` / `assets/bg.png` 一并放好即可。
   "enable": true,
   "hideThemeVideo": true,
   "video": "bg.mp4",
-  "image": "assets/bg.png"
+  "image": "assets/bg.png",
+  "scaleMode": "fill"
 }
 ```
 
@@ -91,10 +92,16 @@ ASSETS 目录里的 `bg.mp4` / `assets/bg.png` 一并放好即可。
 | `hideThemeVideo` | 隐藏游戏自带主题背景视频 |
 | `video` | 视频相对路径（默认 `bg.mp4`，也认 `assets/bg.mp4`） |
 | `image` | 没有视频时的图片路径 |
+| `scaleMode` | 显示模式：`fill`（填充，默认）/ `fit`（适应，黑边）/ `tile`（平铺）/ `stretch`（拉伸） |
 
 保存后模组会热重载配置并重新初始化；不生效就重启游戏。
 
 ## 更新日志
+
+### v1.2.2
+
+- 新增 `scaleMode` 显示模式配置：`fill`（填充，默认等比裁切铺满）、`fit`（适应，等比完整显示+纯黑留边）、`tile`（平铺）、`stretch`（拉伸）
+- 修复 20:9 / 21:9 等超宽屏手机上 `UIHomePanel` 居中导致自定义背景左右露边、未真正铺满全屏的问题
 
 ### v1.2.1
 

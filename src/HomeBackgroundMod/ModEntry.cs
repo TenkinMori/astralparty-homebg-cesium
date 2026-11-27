@@ -31,15 +31,23 @@ namespace HomeBackgroundMod
         private const double PollIntervalSeconds = 0.5;
         private const string DefaultImage = "assets/bg.png";
         private const string DefaultVideo = "bg.mp4";
+        private const string ScaleModeFill = "fill";
+        private const string ScaleModeFit = "fit";
+        private const string ScaleModeTile = "tile";
+        private const string ScaleModeStretch = "stretch";
 
         private bool _enabled = true;
         private bool _hideThemeVideo = true;
         private string _imageRelative = DefaultImage;
         private string _videoRelative = DefaultVideo;
+        private string _scaleMode = ScaleModeFill;
         private bool _forceVideo;
 
         private Texture2D _texture;
         private NTexture _nTexture;
+        private GGraph _backdrop;
+        private float _backdropW;
+        private float _backdropH;
         private GLoader _overlay;
         private string _loadedPath;
 
@@ -58,7 +66,7 @@ namespace HomeBackgroundMod
         private bool _loggedHideVideo;
 
         public override string Name { get { return "自定义主页背景"; } }
-        public override string Version { get { return "1.2.1"; } }
+        public override string Version { get { return "1.2.2"; } }
         public override string Author { get { return "TenkinMori"; } }
         public override string Description
         {
@@ -73,7 +81,7 @@ namespace HomeBackgroundMod
         public override void OnInitialize()
         {
             ReadConfig(writeDefaults: true);
-            Log.Info("配置: enable=" + _enabled + ", image=" + _imageRelative + ", video=" + _videoRelative);
+            Log.Info("配置: enable=" + _enabled + ", scaleMode=" + _scaleMode + ", image=" + _imageRelative + ", video=" + _videoRelative);
             if (_enabled && ResolveVideoPath() == null) Preload();
         }
 
@@ -84,7 +92,7 @@ namespace HomeBackgroundMod
             _loggedApply = false;
             _loggedHideVideo = false;
             _nextPoll = 0;
-            Log.Info("配置已更新: enable=" + _enabled + ", image=" + _imageRelative + ", video=" + _videoRelative);
+            Log.Info("配置已更新: enable=" + _enabled + ", scaleMode=" + _scaleMode + ", image=" + _imageRelative + ", video=" + _videoRelative);
             if (_enabled && ResolveVideoPath() == null) Preload();
         }
 
@@ -149,6 +157,7 @@ namespace HomeBackgroundMod
                 cfg.Set("hideThemeVideo", true);
                 cfg.Set("video", DefaultVideo);
                 cfg.Set("image", DefaultImage);
+                cfg.Set("scaleMode", ScaleModeFill);
                 cfg.SaveIfDirty();
             }
 
@@ -159,6 +168,19 @@ namespace HomeBackgroundMod
             _videoRelative = string.IsNullOrEmpty(video) ? DefaultVideo : video;
             string image = cfg.GetString("image", DefaultImage);
             _imageRelative = string.IsNullOrEmpty(image) ? DefaultImage : image;
+            _scaleMode = NormalizeScaleMode(cfg.GetString("scaleMode", ScaleModeFill));
+        }
+
+        private static string NormalizeScaleMode(string raw)
+        {
+            if (string.IsNullOrEmpty(raw)) return ScaleModeFill;
+            switch (raw.Trim().ToLowerInvariant())
+            {
+                case ScaleModeFit: return ScaleModeFit;
+                case ScaleModeTile: return ScaleModeTile;
+                case ScaleModeStretch: return ScaleModeStretch;
+                default: return ScaleModeFill;
+            }
         }
 
         private void Apply()
@@ -323,28 +345,62 @@ namespace HomeBackgroundMod
         /// </summary>
         private void ApplyOverlay(UIHomePanel ui, NTexture source)
         {
+            Rect fullRect = ComputeFullScreenRect(ui);
+            int baseIndex = DesiredOverlayIndex(ui);
+
+            if (_backdrop == null || _backdrop.parent != ui)
+            {
+                _backdrop = new GGraph();
+                _backdrop.name = "HomeBackgroundModBackdrop";
+                _backdrop.touchable = false;
+                ui.AddChildAt(_backdrop, baseIndex);
+                _backdropW = 0f;
+                _backdropH = 0f;
+            }
+            else if (ui.GetChildIndex(_backdrop) < baseIndex)
+            {
+                ui.SetChildIndex(_backdrop, baseIndex);
+            }
+
+            _backdrop.SetPosition(fullRect.x, fullRect.y, 0f);
+            if (Math.Abs(_backdropW - fullRect.width) > 0.5f || Math.Abs(_backdropH - fullRect.height) > 0.5f)
+            {
+                _backdrop.SetSize(fullRect.width, fullRect.height);
+                _backdrop.DrawRect(fullRect.width, fullRect.height, 0, Color.black, Color.black);
+                _backdropW = fullRect.width;
+                _backdropH = fullRect.height;
+            }
+
+            int overlayIndex = Math.Min(ui.GetChildIndex(_backdrop) + 1, ui.numChildren);
             if (_overlay == null || _overlay.parent != ui)
             {
                 _overlay = new GLoader();
                 _overlay.name = "HomeBackgroundModOverlay";
-                _overlay.fill = FillType.ScaleFree;
                 _overlay.touchable = false;
+                ui.AddChildAt(_overlay, overlayIndex);
 
-                int index = DesiredOverlayIndex(ui);
-                ui.AddChildAt(_overlay, index);
-
-                Log.Info("overlay 插入 index=" + index + "/" + ui.numChildren
+                Log.Info("overlay 插入 index=" + overlayIndex + "/" + ui.numChildren
                     + " loader_bg=" + IndexOf(ui, ui.loader_bg)
-                    + " Com_BGSet=" + IndexOf(ui, ui.Com_BGSet));
+                    + " Com_BGSet=" + IndexOf(ui, ui.Com_BGSet)
+                    + " rect=" + (int)fullRect.x + "," + (int)fullRect.y + " " + (int)fullRect.width + "x" + (int)fullRect.height);
             }
-            else
+            else if (ui.GetChildIndex(_overlay) <= ui.GetChildIndex(_backdrop))
             {
-                int want = DesiredOverlayIndex(ui);
-                if (ui.GetChildIndex(_overlay) < want) ui.SetChildIndex(_overlay, want);
+                ui.SetChildIndex(_overlay, overlayIndex);
             }
 
-            _overlay.SetSize(GRoot.inst.width, GRoot.inst.height);
-            _overlay.SetPosition(0f, 0f, 0f);
+            if (source != null && source.nativeTexture != null)
+            {
+                TextureWrapMode wantWrap = (_scaleMode == ScaleModeTile) ? TextureWrapMode.Repeat : TextureWrapMode.Clamp;
+                if (source.nativeTexture.wrapMode != wantWrap)
+                {
+                    source.nativeTexture.wrapMode = wantWrap;
+                }
+            }
+
+            ApplyScaleMode(_overlay, _scaleMode);
+            _overlay.SetSize(fullRect.width, fullRect.height);
+            _overlay.SetPosition(fullRect.x, fullRect.y, 0f);
 
             if (!ReferenceEquals(_overlay.texture, source))
             {
@@ -352,8 +408,61 @@ namespace HomeBackgroundMod
                 if (!_loggedApply)
                 {
                     _loggedApply = true;
-                    Log.Info("已替换主页背景(overlay): " + (_activeVideoPath ?? _loadedPath ?? ""));
+                    Log.Info("已替换主页背景(overlay, " + _scaleMode + "): " + (_activeVideoPath ?? _loadedPath ?? ""));
                 }
+            }
+
+            if (_overlay.image != null)
+            {
+                bool wantTile = _scaleMode == ScaleModeTile;
+                if (_overlay.image.scaleByTile != wantTile)
+                {
+                    _overlay.image.scaleByTile = wantTile;
+                    if (wantTile) _overlay.image.textureScale = Vector2.one;
+                    _overlay.InvalidateBatchingState();
+                }
+            }
+        }
+
+        private static Rect ComputeFullScreenRect(UIHomePanel ui)
+        {
+            try
+            {
+                if (GRoot.inst != null)
+                {
+                    Rect r = GRoot.inst.TransformRect(new Rect(0f, 0f, GRoot.inst.width, GRoot.inst.height), ui);
+                    if (r.width > 1f && r.height > 1f) return r;
+                    return new Rect(0f, 0f, GRoot.inst.width, GRoot.inst.height);
+                }
+            }
+            catch { }
+            return new Rect(0f, 0f, Screen.width, Screen.height);
+        }
+
+        private static void ApplyScaleMode(GLoader loader, string scaleMode)
+        {
+            switch (scaleMode)
+            {
+                case ScaleModeFit:
+                    loader.fill = FillType.Scale;
+                    loader.align = AlignType.Center;
+                    loader.verticalAlign = VertAlignType.Middle;
+                    break;
+                case ScaleModeTile:
+                    loader.fill = FillType.ScaleFree;
+                    loader.align = AlignType.Left;
+                    loader.verticalAlign = VertAlignType.Top;
+                    break;
+                case ScaleModeStretch:
+                    loader.fill = FillType.ScaleFree;
+                    loader.align = AlignType.Center;
+                    loader.verticalAlign = VertAlignType.Middle;
+                    break;
+                default:
+                    loader.fill = FillType.ScaleNoBorder;
+                    loader.align = AlignType.Center;
+                    loader.verticalAlign = VertAlignType.Middle;
+                    break;
             }
         }
 
@@ -460,6 +569,18 @@ namespace HomeBackgroundMod
                 }
                 catch { }
                 _overlay = null;
+            }
+            if (_backdrop != null)
+            {
+                try
+                {
+                    _backdrop.RemoveFromParent();
+                    _backdrop.Dispose();
+                }
+                catch { }
+                _backdrop = null;
+                _backdropW = 0f;
+                _backdropH = 0f;
             }
 
             if (_video != null)
