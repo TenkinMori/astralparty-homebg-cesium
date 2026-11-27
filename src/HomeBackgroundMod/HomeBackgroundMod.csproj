@@ -4,8 +4,10 @@
     <TargetFramework>netstandard2.0</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AssemblyName>HomeBackgroundMod</AssemblyName>
     <RootNamespace>HomeBackgroundMod</RootNamespace>
+    <Version>1.2.1</Version>
   </PropertyGroup>
 
   <ItemGroup>
