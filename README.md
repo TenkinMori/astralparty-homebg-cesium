@@ -85,6 +85,17 @@
 
 ## 更新日志
 
+### v1.2.1
+
+- 修复 Unity Linear 色彩空间下视频背景写入 `sRGB` `RenderTexture` 导致画面发白的问题（4×4 中灰自校准：自动匹配 Shader 线性 Keyword、`GL.sRGBWrite = false` 或 `Linear RT → Graphics.CopyTexture → sRGB Texture2D`）
+- 规范程序集版本号（`1.2.1`）及多平台统一分发目录
+
+### v1.2.0
+
+- 重构 Android 视频背景解码与渲染管线：后台线程 `MediaCodec`（`YUV_420_888`）双槽 `DirectByteBuffer` + 纯反射 JNI `GetDirectBufferAddress` 零拷贝 + 复用游戏内置 `CriMana/SofdecPrimeYuv` GPU 着色器直接渲染，解决主线程卡顿掉帧
+- 支持进入对局/离开主页自动暂停解码，返回主页恢复
+- Windows 与 Android 统一编译为单个跨平台 `HomeBackgroundMod.dll`
+
 ### v1.0.1
 
 - 修复图片背景上下颠倒（PNG 行翻转）
@@ -131,9 +142,9 @@ pwsh -File build.ps1
 
 ## 兼容性
 
-- CesiumLoader SDK 3.1.1+（实测 3.7.0）
+- CesiumLoader SDK 3.1.1+（实测 3.7.0 / 4.1.1）
 - 游戏 3.3.0（2026-11-12 更新后）
-- Windows x64
+- Windows x64 / Android（MediaCodec 硬件解码 + GPU YUV 着色器）
 
 ## 许可
 

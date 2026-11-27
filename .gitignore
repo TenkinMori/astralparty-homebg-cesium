@@ -1,5 +1,7 @@
 ﻿bin/
 obj/
+build/
+dist/*.zip
 *.user
 .vs/
 *.rgba

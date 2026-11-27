@@ -36,6 +36,31 @@ namespace HomeBackgroundMod
             }
         }
 
+        public bool CanCheckFrame
+        {
+            get
+            {
+                try { return _playerType != null && _playerType.GetProperty("frame") != null; }
+                catch { return false; }
+            }
+        }
+
+        public bool HasFrame
+        {
+            get
+            {
+                try
+                {
+                    if (_player == null || _playerType == null) return false;
+                    PropertyInfo p = _playerType.GetProperty("frame");
+                    if (p == null) return false;
+                    long frame = Convert.ToInt64(p.GetValue(_player, null));
+                    return frame > 0;
+                }
+                catch { return false; }
+            }
+        }
+
         public bool TryStart(string path, int width, int height, out string error)
         {
             error = null;
