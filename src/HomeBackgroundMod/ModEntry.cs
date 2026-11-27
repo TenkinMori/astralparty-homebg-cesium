@@ -66,7 +66,7 @@ namespace HomeBackgroundMod
         private bool _loggedHideVideo;
 
         public override string Name { get { return "自定义主页背景"; } }
-        public override string Version { get { return "1.2.2"; } }
+        public override string Version { get { return "1.2.3"; } }
         public override string Author { get { return "TenkinMori"; } }
         public override string Description
         {
@@ -274,7 +274,7 @@ namespace HomeBackgroundMod
             if (_video.IsPlaying)
             {
                 if (_video.IsPrepared) _video.Play();
-                if (_video.HasFrame)
+                if (_video.HasReceivedFrame)
                 {
                     if (_videoTexture == null) _videoTexture = new NTexture(_video.Texture);
                     return true;

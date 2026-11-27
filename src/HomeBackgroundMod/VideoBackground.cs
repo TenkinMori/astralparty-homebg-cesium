@@ -15,6 +15,7 @@ namespace HomeBackgroundMod
         private RenderTexture _renderTexture;
         private Type _playerType;
         private bool _started;
+        private bool _hasReceivedFrame;
 
         public RenderTexture Texture { get { return _renderTexture; } }
         public bool IsPlaying { get { return _player != null && _renderTexture != null; } }
@@ -45,17 +46,23 @@ namespace HomeBackgroundMod
             }
         }
 
-        public bool HasFrame
+        /// <summary>
+        /// 本次播放是否已收到首帧。循环切换时临时缺帧，不应再次触发启动超时。
+        /// </summary>
+        public bool HasReceivedFrame
         {
             get
             {
+                if (_hasReceivedFrame) return true;
                 try
                 {
                     if (_player == null || _playerType == null) return false;
                     PropertyInfo p = _playerType.GetProperty("frame");
                     if (p == null) return false;
                     long frame = Convert.ToInt64(p.GetValue(_player, null));
-                    return frame > 0;
+                    // Unity 用 -1 表示无有效帧，首帧的索引为 0。
+                    _hasReceivedFrame = frame >= 0;
+                    return _hasReceivedFrame;
                 }
                 catch { return false; }
             }
@@ -140,6 +147,7 @@ namespace HomeBackgroundMod
             _player = null;
             _renderTexture = null;
             _started = false;
+            _hasReceivedFrame = false;
         }
 
         // ------------------------------------------------------------------

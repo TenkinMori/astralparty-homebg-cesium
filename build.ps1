@@ -112,7 +112,7 @@ foreach ($legacyDir in @((Join-Path $root 'dist\android'), (Join-Path $root 'dis
 }
 
 if ($PackageZip) {
-    $zipPath = Join-Path $root 'dist\HomeBackgroundMod-1.2.2.zip'
+    $zipPath = Join-Path $root 'dist\HomeBackgroundMod-1.2.3.zip'
     if (Test-Path $zipPath) { Remove-Item -Force $zipPath }
     Compress-Archive -Path $out -DestinationPath $zipPath -CompressionLevel Optimal
     Write-Host "ZIP -> $zipPath"
