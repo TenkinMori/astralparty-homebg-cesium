@@ -25,7 +25,7 @@
 到 [Releases](https://github.com/TenkinMori/astralparty-homebg-cesium/releases) 下最新一版：
 
 - `HomeBackgroundMod.dll`：单个 dll，**Windows 与 Android 通用**（v1.2.0 起合并为一个跨平台程序集）
-- `HomeBackgroundMod-1.2.2.zip`：整包（dll + json + icon + 默认背景图），解压即用
+- `HomeBackgroundMod-1.2.3.zip`：整包（dll + json + icon + 默认背景图），解压即用
 
 ## 安装
 
@@ -98,6 +98,10 @@ ASSETS 目录里的 `bg.mp4` / `assets/bg.png` 一并放好即可。
 
 ## 更新日志
 
+### v1.2.3
+
+- 修复 Windows 主页背景视频成功出帧后，因循环或短暂缺帧而永久回退到图片的问题。首帧索引 `0` 也视为有效帧。
+
 ### v1.2.2
 
 - 新增 `scaleMode` 显示模式配置：`fill`（填充，默认等比裁切铺满）、`fit`（适应，等比完整显示+纯黑留边）、`tile`（平铺）、`stretch`（拉伸）
@@ -158,7 +162,7 @@ ASSETS 目录里的 `bg.mp4` / `assets/bg.png` 一并放好即可。
 
 ```powershell
 pwsh -File build.ps1            # 只编 C#（沿用仓库内已提交的 AndroidVideoDex.g.cs）
-pwsh -File build.ps1 -PackageZip  # 额外产出 dist/HomeBackgroundMod-1.2.2.zip
+pwsh -File build.ps1 -PackageZip  # 额外产出 dist/HomeBackgroundMod-1.2.3.zip
 ```
 
 如果改过 `android/java/homebg/VideoDecoder.java`，需要重新生成内嵌 DEX
