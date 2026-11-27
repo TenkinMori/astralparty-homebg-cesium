@@ -25,7 +25,7 @@
 到 [Releases](https://github.com/TenkinMori/astralparty-homebg-cesium/releases) 下最新一版：
 
 - `HomeBackgroundMod.dll`：单个 dll，**Windows 与 Android 通用**（v1.2.0 起合并为一个跨平台程序集）
-- `HomeBackgroundMod-1.2.1.zip`：整包（dll + json + icon + 默认背景图），解压即用
+- `HomeBackgroundMod-1.2.2.zip`：整包（dll + json + icon + 默认背景图），解压即用
 
 ## 安装
 
@@ -103,6 +103,8 @@ ASSETS 目录里的 `bg.mp4` / `assets/bg.png` 一并放好即可。
 - 新增 `scaleMode` 显示模式配置：`fill`（填充，默认等比裁切铺满）、`fit`（适应，等比完整显示+纯黑留边）、`tile`（平铺）、`stretch`（拉伸）
 - 修复 20:9 / 21:9 等超宽屏手机上 `UIHomePanel` 居中导致自定义背景左右露边、未真正铺满全屏的问题
 
+> 贡献者：[@Aperfish](https://github.com/Aperfish)（PR #2，`scaleMode` 与超宽屏适配）。
+
 ### v1.2.1
 
 - 修复 Unity Linear 色彩空间下视频背景写入 `sRGB` `RenderTexture` 导致画面发白的问题（4×4 中灰自校准：自动匹配 Shader 线性 Keyword、`GL.sRGBWrite = false` 或 `Linear RT → Graphics.CopyTexture → sRGB Texture2D`）
@@ -156,7 +158,7 @@ ASSETS 目录里的 `bg.mp4` / `assets/bg.png` 一并放好即可。
 
 ```powershell
 pwsh -File build.ps1            # 只编 C#（沿用仓库内已提交的 AndroidVideoDex.g.cs）
-pwsh -File build.ps1 -PackageZip  # 额外产出 dist/HomeBackgroundMod-1.2.1.zip
+pwsh -File build.ps1 -PackageZip  # 额外产出 dist/HomeBackgroundMod-1.2.2.zip
 ```
 
 如果改过 `android/java/homebg/VideoDecoder.java`，需要重新生成内嵌 DEX
